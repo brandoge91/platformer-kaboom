@@ -2948,7 +2948,19 @@ vec4 frag(vec3 pos, vec2 uv, vec4 color, sampler2D tex) {
   }, "default");
 
   // code/main.js
-  no();
+  var protocol = location.protocol === "https:" ? "wss" : "ws";
+  var ws2 = new WebSocket(`${protocol}://${location.host}/multiplayer`);
+  ws2.onmessage = (message) => {
+    const messageBody = JSON.parse(message.data);
+    const player2 = getplr(messageBody);
+    if ((player2 == null ? void 0 : player2.local) || !player2)
+      return;
+    player2.x = messageBody.x;
+    player2.y = messageBody.y;
+  };
+  no({
+    background: [66, 179, 245]
+  });
   var Timer = class {
     constructor(player2) {
       let time = 0;
@@ -2980,15 +2992,32 @@ vec4 frag(vec3 pos, vec2 uv, vec4 color, sampler2D tex) {
         "player",
         area(),
         scale(0.5, 0.5),
-        body()
+        body(),
+        { clicked: false, username: "username", local: true }
       ]);
-      onHover("player", (plr) => {
-        const obj2 = add([
-          text("user"),
-          pos(plr.x, plr.y),
-          follow(plr, vec2(0, -100)),
-          { value: 0 }
-        ]);
+      onClick("player", (plr) => {
+        if (plr.clicked == false) {
+          plr.clicked = true;
+          const obj2 = add([
+            text(plr.username),
+            "username_" + plr.username,
+            pos(plr.x, plr.y),
+            scale(0.5, 0.5),
+            follow(plr, vec2(plr.username.length * -4, -75)),
+            { value: 0 }
+          ]);
+          const obj22 = add([
+            text(plr.hp() + " hearts"),
+            "username_" + plr.username,
+            pos(plr.x, plr.y),
+            scale(0.3, 0.3),
+            follow(plr, vec2(plr.username.length * -4, -95))
+          ]);
+        } else {
+          plr.clicked = false;
+          const txt = get("username_" + plr.username)[0];
+          destroy(txt);
+        }
       });
       this.player = player2;
       this.player.hidden = true;
@@ -3000,9 +3029,13 @@ vec4 frag(vec3 pos, vec2 uv, vec4 color, sampler2D tex) {
           player2.doubleJump();
         }
       });
-      player2.onUpdate(() => {
-        camPos(player2.pos);
-      });
+      setTimeout(() => {
+        player2.onUpdate(() => {
+          camPos(player2.pos);
+          const messageBody = { x: player2.x, y: player2.y };
+          ws2.send(JSON.stringify(messageBody));
+        });
+      }, 5e3);
       onKeyDown("left", () => {
         player2.move(-220, 0);
       });
@@ -3013,6 +3046,7 @@ vec4 frag(vec3 pos, vec2 uv, vec4 color, sampler2D tex) {
     spawn() {
       this.player.hidden = false;
       this.player.paused = false;
+      const dta = { username: "username!", color: "red" };
     }
     getPlayer() {
       return this.player;
@@ -3020,10 +3054,31 @@ vec4 frag(vec3 pos, vec2 uv, vec4 color, sampler2D tex) {
     despawn() {
       this.player.hidden = true;
       this.player.paused = true;
-      this.player.pos;
     }
   };
   __name(Player, "Player");
+  var OtherPlayer = class {
+    constructer(username, id) {
+      loadSprite("player", "sprites/bang.jpg");
+      const player2 = add([
+        sprite("player"),
+        health(3),
+        pos(80, 40),
+        "otherplayer",
+        id,
+        username,
+        area(),
+        scale(0.5, 0.5),
+        body(),
+        { clicked: false, username: "username" }
+      ]);
+      this.player = player2;
+    }
+    getPlayer() {
+      return this.player;
+    }
+  };
+  __name(OtherPlayer, "OtherPlayer");
   var Block = class {
     constructor(x, y, texture, scale_x, scale_y, movable) {
       loadSprite("ground_prototype", "sprites/grounds/prototype.png");
@@ -3064,6 +3119,17 @@ vec4 frag(vec3 pos, vec2 uv, vec4 color, sampler2D tex) {
     }
   };
   __name(Level, "Level");
+  function getplr(messageBody) {
+    const sender = messageBody.sender;
+    const id = messageBody.id;
+    let player2 = get(id)[0];
+    if (player2)
+      return player2;
+    newpls = new OtherPlayer(sender, id);
+    player2 = newpls.getPlayer();
+    return player2;
+  }
+  __name(getplr, "getplr");
   var player = new Player();
   var timer = new Timer(player.getPlayer());
   var level = new Level("1");

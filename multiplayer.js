@@ -1,29 +1,50 @@
 const ws = require("ws");
 
 module.exports = (server) => {
+  console.log('gaming!')
 
-	const socket = new ws.Server({ server: server, path: "/multiplayer" });
-
-	socket.on("connection", (conn) => {
-
+	const wss = new ws.Server({ server: server, path: "/multiplayer" });
+  const clients = new Map()
 		function broadcast(data) {
-			socket.clients.forEach((client) => {
+			clients.forEach((client) => {
 				if (client !== conn && client.readyState === ws.OPEN) {
 					client.send(data);
 				}
 			});
 		}
+	wss.on('connection', (ws) => {
+    console.log('bang!')
+    const id = uuidv4();
+    const color = Math.floor(Math.random() * 360);
+    const username = "bang!"
+    const metadata = { id, color, username };
 
-		conn.on("message", (data) => {
-			// ...
-		});
+    clients.set(ws, metadata);
 
-		conn.on("close", (data) => {
-			// ...
-		});
+    ws.on('message', (messageAsString) => {
+      const message = JSON.parse(messageAsString);
+      const metadata = clients.get(ws);
 
-		conn.send("oh hi");
+      message.sender = metadata.username;
+      message.color = metadata.color;
+      message.id = metadata.id;
 
-	});
+      [...clients.keys()].forEach((client) => {
+        client.send(JSON.stringify(message));
+      });
+    });  
+    
+    
+});
+  wss.on("close", () => {
+  clients.delete(ws);
+});
 
 };
+
+function uuidv4() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
